@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Provisional Sums Tracker — Aldar</title>
+
+  <!-- CDN Libraries -->
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+
+  <style>
+    :root {
+      --navy:   #1A3A5C;
+      --blue:   #2E6E9E;
+      --teal:   #3D7A5C;
+      --amber:  #C47A1A;
+      --bg:     #F4F5F7;
+      --card:   #FFFFFF;
+      --text:   #2C2C2C;
+      --muted:  #6B6B6B;
+      --border: #E0E0E0;
+      --sidebar-w: 260px;
+      --header-h:  60px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Header */
+    #header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--header-h);
+      background: var(--navy);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 16px;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    #header .logo-placeholder {
+      width: 40px; height: 40px;
+      background: #000;
+      border: 2px solid #fff;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      flex-shrink: 0;
+    }
+
+    #header h1 {
+      font-size: 17px;
+      font-weight: 600;
+      color: #fff;
+      letter-spacing: 0.2px;
+    }
+
+    #header .header-meta {
+      margin-left: auto;
+      font-size: 12px;
+      color: rgba(255,255,255,0.6);
+    }
+
+    /* Layout */
+    #layout {
+      display: flex;
+      height: 100vh;
+      padding-top: var(--header-h);
+    }
+
+    /* Sidebar */
+    #sidebar {
+      width: var(--sidebar-w);
+      background: var(--navy);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 20px 16px;
+      gap: 20px;
+      overflow-y: auto;
+      border-right: 1px solid rgba(255,255,255,0.08);
+    }
+
+    #sidebar .sidebar-section-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: rgba(255,255,255,0.45);
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    /* Upload area */
+    .upload-area {
+      border: 1.5px dashed rgba(255,255,255,0.3);
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+      cursor: pointer;
+      color: rgba(255,255,255,0.7);
+      font-size: 12px;
+    }
+
+    .upload-area input[type="file"] { display: none; }
+
+    /* Filter containers */
+    .filter-group { margin-bottom: 12px; }
+
+    .filter-label {
+      font-size: 11px;
+      color: rgba(255,255,255,0.6);
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .filter-select-placeholder {
+      width: 100%;
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 6px;
+      color: rgba(255,255,255,0.8);
+      font-size: 12px;
+    }
+
+    .sidebar-divider {
+      height: 1px;
+      background: rgba(255,255,255,0.1);
+    }
+
+    /* Export button */
+    .btn-export {
+      width: 100%;
+      padding: 10px;
+      background: var(--teal);
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: auto;
+    }
+
+    .btn-export:hover { background: #2f6349; }
+
+    /* Main content */
+    #main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* KPI Grid */
+    #kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 16px;
+    }
+
+    .kpi-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--navy);
+      border-radius: 8px;
+      padding: 18px 16px;
+    }
+
+    .kpi-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .kpi-value {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--navy);
+    }
+
+    /* Chart containers */
+    .chart-row {
+      display: grid;
+      gap: 20px;
+    }
+
+    .chart-row.one   { grid-template-columns: 1fr; }
+    .chart-row.two   { grid-template-columns: 1fr 1fr; }
+    .chart-row.three { grid-template-columns: 3fr 2fr; }
+
+    .chart-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+    }
+
+    .chart-card h3 {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--navy);
+      margin-bottom: 4px;
+    }
+
+    .chart-card .chart-note {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .chart-body {
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div id="header">
+    <div class="logo-placeholder">ALDAR</div>
+    <h1>Provisional Sums Tracker</h1>
+    <div class="header-meta" id="header-meta">No data loaded</div>
+  </div>
+
+  <!-- Main layout -->
+  <div id="layout">
+
+    <!-- Sidebar -->
+    <aside id="sidebar">
+
+      <div>
+        <div class="sidebar-section-title">Data Source</div>
+        <div class="upload-area" id="upload-area">
+          <input type="file" id="file-input" accept=".xlsx">
+          <label for="file-input">&#8679; Upload Excel Tracker</label>
+        </div>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <div>
+        <div class="sidebar-section-title">Filters</div>
+
+        <div class="filter-group">
+          <label class="filter-label">Project</label>
+          <div class="filter-select-placeholder" id="filter-project">All Projects</div>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label">Package Manager</label>
+          <div class="filter-select-placeholder" id="filter-manager">All Managers</div>
+        </div>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <button class="btn-export" id="btn-export">&#8659; Export to PowerPoint</button>
+
+    </aside>
+
+    <!-- Main content -->
+    <main id="main">
+
+      <!-- KPI Cards row -->
+      <div id="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Total Packages</div><div class="kpi-value" id="kpi-total">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">Awarded</div><div class="kpi-value" id="kpi-awarded">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">Contract Value</div><div class="kpi-value" id="kpi-contract">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">Award Value</div><div class="kpi-value" id="kpi-award">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">Total Savings</div><div class="kpi-value" id="kpi-savings">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">Delayed Packages</div><div class="kpi-value" id="kpi-delayed">—</div></div>
+      </div>
+
+      <!-- Row 1: Project Progress -->
+      <div class="chart-row one">
+        <div class="chart-card">
+          <h3>Project Progress</h3>
+          <p class="chart-note">Packages by stage group per project</p>
+          <div class="chart-body" id="chart-project-progress" style="height:440px"></div>
+        </div>
+      </div>
+
+      <!-- Row 2: Pipeline + Financial -->
+      <div class="chart-row three">
+        <div class="chart-card">
+          <h3>Procurement Stage Pipeline</h3>
+          <p class="chart-note">Package count at each of the 11 procurement stages</p>
+          <div class="chart-body" id="chart-pipeline" style="height:300px"></div>
+        </div>
+        <div class="chart-card">
+          <h3>Financial Summary</h3>
+          <p class="chart-note">Contract vs Award Value (AED M) per project</p>
+          <div class="chart-body" id="chart-financial" style="height:300px"></div>
+        </div>
+      </div>
+
+      <!-- Row 3: Manager charts -->
+      <div class="chart-row two">
+        <div class="chart-card">
+          <h3>Package Manager Workload</h3>
+          <p class="chart-note">Packages per manager by stage group</p>
+          <div class="chart-body" id="chart-manager-workload" style="height:280px"></div>
+        </div>
+        <div class="chart-card">
+          <h3>Manager Delay Profile</h3>
+          <p class="chart-note">Average days overdue per manager</p>
+          <div class="chart-body" id="chart-manager-delay" style="height:280px"></div>
+        </div>
+      </div>
+
+      <!-- Row 4: Delay tracking -->
+      <div class="chart-row one">
+        <div class="chart-card">
+          <h3>Delay Tracking by Project</h3>
+          <p class="chart-note">Count of overdue packages per project</p>
+          <div class="chart-body" id="chart-delay" style="height:220px"></div>
+        </div>
+      </div>
+
+      <!-- Row 5: Overdue table -->
+      <div class="chart-row one">
+        <div class="chart-card">
+          <h3>Overdue Packages</h3>
+          <p class="chart-note">All packages past their planned award date, sorted by days overdue</p>
+          <div id="delay-table-container"></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    // JavaScript logic will be added incrementally in subsequent steps.
+  </script>
+
+</body>
+</html>
