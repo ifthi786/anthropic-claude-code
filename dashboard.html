@@ -434,7 +434,7 @@
 
       <div class="sidebar-divider"></div>
 
-      <button class="btn-export" id="btn-export">&#8659; Export to PowerPoint</button>
+      <button class="btn-export" id="btn-export">&#8659; Export Summary</button>
 
     </aside>
 
@@ -1236,6 +1236,292 @@
       renderKPIs(filteredData);
       renderCharts(filteredData);
     }
+
+    /* =========================================================
+       POWERPOINT EXPORT
+    ========================================================= */
+    const PPTX_C = {
+      navy:   '1A3A5C',
+      blue:   '2E6E9E',
+      teal:   '3D7A5C',
+      amber:  'C47A1A',
+      muted:  '6B6B6B',
+      white:  'FFFFFF',
+      text:   '2C2C2C',
+      border: 'E0E0E0',
+      stripe: 'F7F8FA',
+    };
+
+    async function exportToPowerPoint() {
+      if (!filteredData.length) {
+        alert('No data loaded. Please upload an Excel file first.');
+        return;
+      }
+
+      const btn = document.getElementById('btn-export');
+      const origLabel = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Generating…';
+
+      try {
+        // --- Capture chart images ---
+        const [pipelineImg, financialImg] = await Promise.all([
+          Plotly.toImage(document.getElementById('chart-pipeline'),
+            { format: 'png', width: 1200, height: 460 }),
+          Plotly.toImage(document.getElementById('chart-financial'),
+            { format: 'png', width: 1200, height: 460 }),
+        ]);
+
+        const kpis = computeKPIs(filteredData);
+
+        const pptx = new PptxGenJS();
+        pptx.layout   = 'LAYOUT_WIDE';   // 13.33" × 7.5"
+        pptx.author   = 'Aldar';
+        pptx.subject  = 'Provisional Sums Tracker';
+        pptx.title    = 'PS Tracker Summary';
+
+        // Shared helper: navy header bar + title text on a slide
+        function addHeader(sl, title, subtitle) {
+          sl.addShape('rect', {
+            x: 0, y: 0, w: 13.33, h: 0.62,
+            fill: { color: PPTX_C.navy },
+            line: { color: PPTX_C.navy },
+          });
+          sl.addText(title, {
+            x: 0.3, y: 0, w: 12.7, h: 0.62,
+            fontSize: 15, bold: true,
+            color: PPTX_C.white, valign: 'middle', fontFace: 'Calibri',
+          });
+          if (subtitle) {
+            sl.addText(subtitle, {
+              x: 0.3, y: 0.66, w: 12.7, h: 0.32,
+              fontSize: 10, color: PPTX_C.muted, fontFace: 'Calibri',
+            });
+          }
+        }
+
+        /* --------------------------------------------------------
+           Slide 1 — Title
+        -------------------------------------------------------- */
+        const sl1 = pptx.addSlide();
+        sl1.background = { color: PPTX_C.navy };
+
+        // Teal accent strip at bottom
+        sl1.addShape('rect', {
+          x: 0, y: 6.9, w: 13.33, h: 0.6,
+          fill: { color: PPTX_C.teal },
+          line: { color: PPTX_C.teal },
+        });
+
+        // "ALDAR" brand text (top-left logo placeholder)
+        sl1.addText('ALDAR', {
+          x: 0.4, y: 0.3, w: 3, h: 0.65,
+          fontSize: 24, bold: true,
+          color: PPTX_C.white, fontFace: 'Calibri',
+        });
+
+        sl1.addText('Provisional Sums Tracker', {
+          x: 0.4, y: 2.3, w: 12.5, h: 1.3,
+          fontSize: 38, bold: true,
+          color: PPTX_C.white, fontFace: 'Calibri',
+        });
+
+        const projLabel = selectedProjects.size === allProjects.length
+          ? 'All Projects'
+          : `${selectedProjects.size} of ${allProjects.length} Projects`;
+        const mgrLabel = selectedManagers.size === allManagers.length
+          ? 'All Managers'
+          : `${selectedManagers.size} of ${allManagers.length} Managers`;
+
+        sl1.addText(`${projLabel}  |  ${mgrLabel}`, {
+          x: 0.4, y: 3.75, w: 12.5, h: 0.5,
+          fontSize: 14, color: 'A8C4D8', fontFace: 'Calibri',
+        });
+
+        const today = new Date().toLocaleDateString('en-GB',
+          { day: '2-digit', month: 'short', year: 'numeric' });
+        sl1.addText(`Generated: ${today}  ·  ${filteredData.length} packages`, {
+          x: 0.4, y: 4.35, w: 12.5, h: 0.4,
+          fontSize: 12, color: '7AADC8', fontFace: 'Calibri',
+        });
+
+        /* --------------------------------------------------------
+           Slide 2 — KPI Summary
+        -------------------------------------------------------- */
+        const sl2 = pptx.addSlide();
+        sl2.background = { color: PPTX_C.stripe };
+        addHeader(sl2, 'KPI Summary');
+
+        const awardedPct = kpis.total ? Math.round(kpis.awarded / kpis.total * 100) : 0;
+        const delayedPct = kpis.total ? Math.round(kpis.delayed / kpis.total * 100) : 0;
+        const savingSign = kpis.totalSaving >= 0 ? '+' : '-';
+        const projCount  = new Set(filteredData.map(r => r.project)).size;
+
+        const kpiCards = [
+          {
+            label: 'Total Packages',
+            value: String(kpis.total),
+            sub:   `Across ${projCount} project${projCount !== 1 ? 's' : ''}`,
+            accent: PPTX_C.blue,
+          },
+          {
+            label: 'Awarded',
+            value: String(kpis.awarded),
+            sub:   `${awardedPct}% of total`,
+            accent: PPTX_C.teal,
+          },
+          {
+            label: 'Contract Value',
+            value: 'AED ' + fmtAED(kpis.totalContract),
+            sub:   'incl. OHP',
+            accent: PPTX_C.navy,
+          },
+          {
+            label: 'Award Value',
+            value: 'AED ' + fmtAED(kpis.totalAward),
+            sub:   'incl. OHP',
+            accent: PPTX_C.teal,
+          },
+          {
+            label: 'Total Savings',
+            value: 'AED ' + fmtAED(Math.abs(kpis.totalSaving)),
+            sub:   `${savingSign}${(Math.abs(kpis.totalSaving)/1e6).toFixed(1)}M net`,
+            accent: PPTX_C.teal,
+          },
+          {
+            label: 'Delayed Packages',
+            value: String(kpis.delayed),
+            sub:   `${delayedPct}% of packages`,
+            accent: PPTX_C.amber,
+          },
+        ];
+
+        const cardW = 3.9, cardH = 2.6, gapX = 0.26, gapY = 0.35;
+        const startX = 0.35, startY = 0.85;
+
+        kpiCards.forEach((c, i) => {
+          const col = i % 3;
+          const row = Math.floor(i / 3);
+          const x   = startX + col * (cardW + gapX);
+          const y   = startY + row * (cardH + gapY);
+
+          sl2.addShape('rect', {
+            x, y, w: cardW, h: cardH,
+            fill: { color: PPTX_C.white },
+            line: { color: PPTX_C.border, pt: 1 },
+          });
+          // top accent strip
+          sl2.addShape('rect', {
+            x, y, w: cardW, h: 0.07,
+            fill: { color: c.accent },
+            line: { color: c.accent },
+          });
+          sl2.addText(c.label.toUpperCase(), {
+            x: x + 0.18, y: y + 0.16, w: cardW - 0.36, h: 0.35,
+            fontSize: 9, bold: true, color: PPTX_C.muted,
+            fontFace: 'Calibri', charSpacing: 0.8,
+          });
+          sl2.addText(c.value, {
+            x: x + 0.18, y: y + 0.56, w: cardW - 0.36, h: 1.0,
+            fontSize: 22, bold: true, color: PPTX_C.navy, fontFace: 'Calibri',
+          });
+          sl2.addText(c.sub, {
+            x: x + 0.18, y: y + 1.65, w: cardW - 0.36, h: 0.5,
+            fontSize: 11, color: PPTX_C.muted, fontFace: 'Calibri',
+          });
+        });
+
+        /* --------------------------------------------------------
+           Slide 3 — Procurement Pipeline Chart
+        -------------------------------------------------------- */
+        const sl3 = pptx.addSlide();
+        addHeader(sl3, 'Procurement Stage Pipeline',
+          'Package count at each of the 11 procurement stages');
+        sl3.addImage({ data: pipelineImg, x: 0.3, y: 1.05, w: 12.73, h: 6.15 });
+
+        /* --------------------------------------------------------
+           Slide 4 — Financial Summary Chart
+        -------------------------------------------------------- */
+        const sl4 = pptx.addSlide();
+        addHeader(sl4, 'Financial Summary by Project',
+          'Contract Value vs Award Value (AED M) — packages with financial data only');
+        sl4.addImage({ data: financialImg, x: 0.3, y: 1.05, w: 12.73, h: 6.15 });
+
+        /* --------------------------------------------------------
+           Slide 5 — Delay Table (top 20)
+        -------------------------------------------------------- */
+        const sl5 = pptx.addSlide();
+        addHeader(sl5, 'Overdue Packages — Top 20',
+          'Packages past their planned award date, sorted by days overdue');
+
+        const top20 = filteredData
+          .filter(r => r.is_delayed)
+          .sort((a, b) => b.days_overdue - a.days_overdue)
+          .slice(0, 20);
+
+        if (!top20.length) {
+          sl5.addText('No delayed packages in current selection.', {
+            x: 0.5, y: 3, w: 12, h: 1,
+            fontSize: 16, color: PPTX_C.muted,
+            fontFace: 'Calibri', align: 'center',
+          });
+        } else {
+          const colLabels = [
+            'Project', 'Package', 'Manager', 'Current Stage', 'Forecast Award', 'Days Overdue',
+          ];
+          const colWidths  = [2.5, 3.2, 1.85, 2.35, 1.4, 1.23];  // sums to 12.53
+
+          const hdrOpts = {
+            bold: true, fontSize: 9, fontFace: 'Calibri',
+            color: PPTX_C.white, align: 'center', valign: 'middle',
+            fill: { color: PPTX_C.navy },
+          };
+
+          const headerRow = colLabels.map(h => ({ text: h, options: hdrOpts }));
+
+          const dataRows = top20.map((r, idx) => {
+            const bg = idx % 2 === 0 ? PPTX_C.white : PPTX_C.stripe;
+            const cells = [
+              r.project         || '—',
+              r.package_name    || '—',
+              r.package_manager || '—',
+              r.current_stage   || '—',
+              r.forecast_award  || '—',
+              r.days_overdue + 'd',
+            ];
+            return cells.map((val, ci) => ({
+              text: val,
+              options: {
+                fontSize: 8, fontFace: 'Calibri', valign: 'middle',
+                color: ci === 5 ? PPTX_C.amber : PPTX_C.text,
+                bold:  ci === 5,
+                align: ci === 5 ? 'center' : 'left',
+                fill:  { color: bg },
+              },
+            }));
+          });
+
+          sl5.addTable([headerRow, ...dataRows], {
+            x: 0.4, y: 1.05,
+            colW: colWidths,
+            rowH: 0.28,
+            border: { type: 'solid', color: PPTX_C.border, pt: 0.5 },
+          });
+        }
+
+        /* ---- trigger download ---- */
+        await pptx.writeFile({ fileName: 'PS_Tracker_Summary.pptx' });
+
+      } catch (err) {
+        console.error('PPT export error:', err);
+        alert('Export failed: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = origLabel;
+      }
+    }
+
+    document.getElementById('btn-export').addEventListener('click', exportToPowerPoint);
   </script>
 
 </body>
