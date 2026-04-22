@@ -236,6 +236,103 @@
     .chart-body {
       width: 100%;
     }
+
+    /* Multiselect dropdown */
+    .ms-wrap { position: relative; margin-bottom: 12px; }
+
+    .ms-btn {
+      width: 100%;
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 6px;
+      color: rgba(255,255,255,0.85);
+      font-size: 12px;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: inherit;
+    }
+    .ms-btn:hover { background: rgba(255,255,255,0.16); }
+    .ms-arrow { font-size: 10px; opacity: 0.6; }
+
+    .ms-panel {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0; right: 0;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.14);
+      z-index: 200;
+      overflow: hidden;
+    }
+    .ms-panel.open { display: block; }
+
+    .ms-search { padding: 8px; border-bottom: 1px solid var(--border); }
+    .ms-search input {
+      width: 100%;
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 12px;
+      outline: none;
+      font-family: inherit;
+    }
+    .ms-actions {
+      display: flex;
+      gap: 6px;
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .ms-actions button {
+      font-size: 11px;
+      padding: 3px 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: none;
+      cursor: pointer;
+      color: var(--blue);
+      font-family: inherit;
+    }
+    .ms-actions button:hover { background: var(--bg); }
+
+    .ms-list { max-height: 180px; overflow-y: auto; }
+    .ms-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      cursor: pointer;
+    }
+    .ms-item:hover { background: var(--bg); }
+    .ms-item input[type="checkbox"] { cursor: pointer; accent-color: var(--blue); }
+    .ms-item label { font-size: 12px; cursor: pointer; color: var(--text); flex: 1; }
+
+    /* Reset button */
+    .btn-reset {
+      width: 100%;
+      padding: 8px;
+      background: none;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 6px;
+      color: rgba(255,255,255,0.7);
+      font-size: 12px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn-reset:hover { background: rgba(255,255,255,0.08); color: #fff; }
+
+    /* KPI sub-label */
+    .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 5px; }
+    .kpi-sub .positive { color: var(--teal); }
+    .kpi-sub .negative { color: var(--amber); }
+    .kpi-card.accent-amber { border-top-color: var(--amber); }
+    .kpi-card.accent-teal  { border-top-color: var(--teal); }
+    .kpi-card.accent-blue  { border-top-color: var(--blue); }
   </style>
 </head>
 <body>
@@ -268,13 +365,45 @@
 
         <div class="filter-group">
           <label class="filter-label">Project</label>
-          <div class="filter-select-placeholder" id="filter-project">All Projects</div>
+          <div class="ms-wrap">
+            <button class="ms-btn" id="ms-project-btn" type="button">
+              <span id="ms-project-label">All Projects</span>
+              <span class="ms-arrow">&#8964;</span>
+            </button>
+            <div class="ms-panel" id="ms-project-panel">
+              <div class="ms-search">
+                <input type="text" id="ms-project-search" placeholder="Search projects…">
+              </div>
+              <div class="ms-actions">
+                <button type="button" onclick="msSelectAll('project')">Select All</button>
+                <button type="button" onclick="msClear('project')">Clear</button>
+              </div>
+              <div class="ms-list" id="ms-project-list"></div>
+            </div>
+          </div>
         </div>
 
         <div class="filter-group">
           <label class="filter-label">Package Manager</label>
-          <div class="filter-select-placeholder" id="filter-manager">All Managers</div>
+          <div class="ms-wrap">
+            <button class="ms-btn" id="ms-manager-btn" type="button">
+              <span id="ms-manager-label">All Managers</span>
+              <span class="ms-arrow">&#8964;</span>
+            </button>
+            <div class="ms-panel" id="ms-manager-panel">
+              <div class="ms-search">
+                <input type="text" id="ms-manager-search" placeholder="Search managers…">
+              </div>
+              <div class="ms-actions">
+                <button type="button" onclick="msSelectAll('manager')">Select All</button>
+                <button type="button" onclick="msClear('manager')">Clear</button>
+              </div>
+              <div class="ms-list" id="ms-manager-list"></div>
+            </div>
+          </div>
         </div>
+
+        <button class="btn-reset" onclick="resetFilters()">&#8635; Reset Filters</button>
       </div>
 
       <div class="sidebar-divider"></div>
@@ -288,12 +417,36 @@
 
       <!-- KPI Cards row -->
       <div id="kpi-grid">
-        <div class="kpi-card"><div class="kpi-label">Total Packages</div><div class="kpi-value" id="kpi-total">—</div></div>
-        <div class="kpi-card"><div class="kpi-label">Awarded</div><div class="kpi-value" id="kpi-awarded">—</div></div>
-        <div class="kpi-card"><div class="kpi-label">Contract Value</div><div class="kpi-value" id="kpi-contract">—</div></div>
-        <div class="kpi-card"><div class="kpi-label">Award Value</div><div class="kpi-value" id="kpi-award">—</div></div>
-        <div class="kpi-card"><div class="kpi-label">Total Savings</div><div class="kpi-value" id="kpi-savings">—</div></div>
-        <div class="kpi-card"><div class="kpi-label">Delayed Packages</div><div class="kpi-value" id="kpi-delayed">—</div></div>
+        <div class="kpi-card accent-blue">
+          <div class="kpi-label">Total Packages</div>
+          <div class="kpi-value" id="kpi-total">—</div>
+          <div class="kpi-sub" id="kpi-total-sub"></div>
+        </div>
+        <div class="kpi-card accent-teal">
+          <div class="kpi-label">Awarded</div>
+          <div class="kpi-value" id="kpi-awarded">—</div>
+          <div class="kpi-sub" id="kpi-awarded-sub"></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Contract Value</div>
+          <div class="kpi-value" id="kpi-contract">—</div>
+          <div class="kpi-sub" id="kpi-contract-sub">incl. OHP</div>
+        </div>
+        <div class="kpi-card accent-teal">
+          <div class="kpi-label">Award Value</div>
+          <div class="kpi-value" id="kpi-award">—</div>
+          <div class="kpi-sub" id="kpi-award-sub">incl. OHP</div>
+        </div>
+        <div class="kpi-card accent-teal">
+          <div class="kpi-label">Total Savings</div>
+          <div class="kpi-value" id="kpi-savings">—</div>
+          <div class="kpi-sub" id="kpi-savings-sub"></div>
+        </div>
+        <div class="kpi-card accent-amber">
+          <div class="kpi-label">Delayed Packages</div>
+          <div class="kpi-value" id="kpi-delayed">—</div>
+          <div class="kpi-sub" id="kpi-delayed-sub"></div>
+        </div>
       </div>
 
       <!-- Row 1: Project Progress -->
@@ -527,6 +680,17 @@
           allManagers   = [...new Set(records.map(r => r.package_manager)
                             .filter(Boolean))].sort();
 
+          // Initialise filter state (all selected by default)
+          selectedProjects = new Set(allProjects);
+          selectedManagers = new Set(allManagers);
+          buildMultiselect('project', allProjects, selectedProjects);
+          buildMultiselect('manager', allManagers, selectedManagers);
+          updateMsLabel('project', allProjects, selectedProjects);
+          updateMsLabel('manager', allManagers, selectedManagers);
+
+          // Compute and render KPIs
+          onFilterChange();
+
           // Console output for verification
           console.group('dashboardData loaded');
           console.log('Total records :', dashboardData.length);
@@ -556,6 +720,198 @@
     document.getElementById('upload-area').addEventListener('click', function () {
       document.getElementById('file-input').click();
     });
+
+    /* =========================================================
+       FILTER STATE
+    ========================================================= */
+    let selectedProjects = new Set();
+    let selectedManagers = new Set();
+    let filteredData     = [];
+
+    /* =========================================================
+       MULTISELECT COMPONENT
+    ========================================================= */
+    function buildMultiselect(key, items, selectedSet) {
+      const listEl   = document.getElementById(`ms-${key}-list`);
+      const searchEl = document.getElementById(`ms-${key}-search`);
+      listEl.innerHTML = '';
+      searchEl.value   = '';
+
+      items.forEach(item => {
+        const div = document.createElement('div');
+        div.className    = 'ms-item';
+        div.dataset.value = item;
+
+        const cb    = document.createElement('input');
+        cb.type     = 'checkbox';
+        cb.id       = `cb-${key}-${CSS.escape(item)}`;
+        cb.checked  = selectedSet.has(item);
+        cb.addEventListener('change', () => {
+          if (cb.checked) selectedSet.add(item);
+          else            selectedSet.delete(item);
+          updateMsLabel(key, items, selectedSet);
+          onFilterChange();
+        });
+
+        const lbl         = document.createElement('label');
+        lbl.htmlFor       = cb.id;
+        lbl.textContent   = item;
+        lbl.title         = item;
+
+        div.appendChild(cb);
+        div.appendChild(lbl);
+        listEl.appendChild(div);
+      });
+
+      searchEl.addEventListener('input', () => {
+        const q = searchEl.value.toLowerCase();
+        listEl.querySelectorAll('.ms-item').forEach(div => {
+          div.style.display = div.dataset.value.toLowerCase().includes(q) ? '' : 'none';
+        });
+      });
+    }
+
+    function updateMsLabel(key, items, selectedSet) {
+      const el = document.getElementById(`ms-${key}-label`);
+      if (!el) return;
+      if (selectedSet.size === 0 || selectedSet.size === items.length) {
+        el.textContent = key === 'project' ? 'All Projects' : 'All Managers';
+      } else {
+        el.textContent = `${selectedSet.size} of ${items.length} selected`;
+      }
+    }
+
+    function toggleMs(key) {
+      const panel  = document.getElementById(`ms-${key}-panel`);
+      const isOpen = panel.classList.contains('open');
+      document.querySelectorAll('.ms-panel').forEach(p => p.classList.remove('open'));
+      if (!isOpen) panel.classList.add('open');
+    }
+
+    function msSelectAll(key) {
+      const items = key === 'project' ? allProjects : allManagers;
+      const sel   = key === 'project' ? selectedProjects : selectedManagers;
+      items.forEach(i => sel.add(i));
+      buildMultiselect(key, items, sel);
+      updateMsLabel(key, items, sel);
+      onFilterChange();
+    }
+
+    function msClear(key) {
+      const items = key === 'project' ? allProjects : allManagers;
+      const sel   = key === 'project' ? selectedProjects : selectedManagers;
+      sel.clear();
+      buildMultiselect(key, items, sel);
+      updateMsLabel(key, items, sel);
+      onFilterChange();
+    }
+
+    function resetFilters() {
+      allProjects.forEach(p => selectedProjects.add(p));
+      allManagers.forEach(m => selectedManagers.add(m));
+      buildMultiselect('project', allProjects, selectedProjects);
+      buildMultiselect('manager', allManagers, selectedManagers);
+      updateMsLabel('project', allProjects, selectedProjects);
+      updateMsLabel('manager', allManagers, selectedManagers);
+      onFilterChange();
+    }
+
+    // Toggle buttons
+    document.getElementById('ms-project-btn').addEventListener('click', e => {
+      e.stopPropagation(); toggleMs('project');
+    });
+    document.getElementById('ms-manager-btn').addEventListener('click', e => {
+      e.stopPropagation(); toggleMs('manager');
+    });
+
+    // Close panels on any outside click
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.ms-panel').forEach(p => p.classList.remove('open'));
+    });
+
+    /* =========================================================
+       FILTERING
+    ========================================================= */
+    function getFilteredData() {
+      const allP = selectedProjects.size === 0 || selectedProjects.size === allProjects.length;
+      const allM = selectedManagers.size  === 0 || selectedManagers.size  === allManagers.length;
+      if (allP && allM) return dashboardData;
+      return dashboardData.filter(r =>
+        (allP || selectedProjects.has(r.project)) &&
+        (allM || selectedManagers.has(r.package_manager))
+      );
+    }
+
+    /* =========================================================
+       KPI COMPUTATION
+    ========================================================= */
+    function computeKPIs(records) {
+      return {
+        total:         records.length,
+        awarded:       records.filter(r => r.ps_award !== null).length,
+        delayed:       records.filter(r => r.is_delayed).length,
+        totalContract: records.reduce((s, r) => s + (r.ps_contract || 0), 0),
+        totalAward:    records.reduce((s, r) => s + (r.ps_award    || 0), 0),
+        totalSaving:   records.filter(r => r.saving !== null)
+                              .reduce((s, r) => s + r.saving, 0),
+      };
+    }
+
+    /* =========================================================
+       KPI RENDERING
+    ========================================================= */
+    function fmtAED(v) {
+      const abs = Math.abs(v);
+      if (abs >= 1e9) return (v / 1e9).toFixed(2) + 'B';
+      if (abs >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+      return v.toLocaleString();
+    }
+
+    function setText(id, val) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val;
+    }
+    function setHtml(id, html) {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = html;
+    }
+
+    function renderKPIs(records) {
+      const k = computeKPIs(records);
+
+      setText('kpi-total',        k.total);
+      setText('kpi-total-sub',    `across ${new Set(records.map(r => r.project)).size} projects`);
+
+      const awardedPct = k.total ? Math.round(k.awarded / k.total * 100) : 0;
+      setText('kpi-awarded',     k.awarded);
+      setHtml('kpi-awarded-sub', `<span class="positive">${awardedPct}% of total</span>`);
+
+      setText('kpi-contract',    'AED ' + fmtAED(k.totalContract));
+      setText('kpi-contract-sub', 'Contract Value incl. OHP');
+
+      setText('kpi-award',       'AED ' + fmtAED(k.totalAward));
+      setText('kpi-award-sub',   'Awarded so far');
+
+      const savingClass = k.totalSaving >= 0 ? 'positive' : 'negative';
+      const savingSign  = k.totalSaving >= 0 ? '+' : '-';
+      setText('kpi-savings',     'AED ' + fmtAED(Math.abs(k.totalSaving)));
+      setHtml('kpi-savings-sub',
+        `<span class="${savingClass}">${savingSign}${(Math.abs(k.totalSaving)/1e6).toFixed(1)}M net</span>`);
+
+      const delayedPct = k.total ? Math.round(k.delayed / k.total * 100) : 0;
+      setText('kpi-delayed',     k.delayed);
+      setHtml('kpi-delayed-sub',
+        `<span class="${k.delayed > 0 ? 'negative' : ''}">${delayedPct}% of packages</span>`);
+    }
+
+    /* =========================================================
+       FILTER CHANGE HANDLER  (charts wired in next step)
+    ========================================================= */
+    function onFilterChange() {
+      filteredData = getFilteredData();
+      renderKPIs(filteredData);
+      // renderCharts(filteredData) — added in next step
+    }
   </script>
 
 </body>
