@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sanitaryware Rate Benchmark Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header class="app-header">
+    <div class="header-logo">
+      <img src="aldar logo.jpeg" alt="Aldar Logo" class="logo-img" />
+    </div>
+    <div class="header-title">
+      <h1>Sanitaryware Rate Benchmark Dashboard</h1>
+      <span class="header-subtitle">Procurement Intelligence &amp; Cost Benchmarking</span>
+    </div>
+    <div class="header-right">
+      <span class="status-badge" id="systemStatus">System Ready</span>
+    </div>
+  </header>
+
+  <!-- ===== MAIN WRAPPER ===== -->
+  <div class="app-wrapper">
+
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="sidebar">
+
+      <div class="sidebar-section">
+        <h3 class="sidebar-section-title">Data Sources</h3>
+
+        <!-- Benchmark Upload -->
+        <div class="upload-card" id="benchmarkCard">
+          <div class="upload-card-header">
+            <span class="upload-icon">&#128196;</span>
+            <span class="upload-label">Benchmark File</span>
+          </div>
+          <p class="upload-description">Master rate benchmark (XLSX)</p>
+          <label class="upload-btn" for="benchmarkInput">
+            <span class="btn-icon">&#8679;</span> Upload Benchmark File
+          </label>
+          <input type="file" id="benchmarkInput" accept=".xlsx" hidden />
+          <div class="file-status" id="benchmarkStatus">
+            <div class="status-indicator idle" id="benchmarkIndicator"></div>
+            <span class="status-text" id="benchmarkStatusText">No file selected</span>
+          </div>
+          <div class="file-name-display" id="benchmarkFileName"></div>
+        </div>
+
+        <!-- Quotation Upload -->
+        <div class="upload-card" id="quotationCard">
+          <div class="upload-card-header">
+            <span class="upload-icon">&#128203;</span>
+            <span class="upload-label">Project Quotation</span>
+          </div>
+          <p class="upload-description">Project BOQ / Quotation (XLSX)</p>
+          <label class="upload-btn" for="quotationInput">
+            <span class="btn-icon">&#8679;</span> Upload Project Quotation
+          </label>
+          <input type="file" id="quotationInput" accept=".xlsx" hidden />
+          <div class="file-status" id="quotationStatus">
+            <div class="status-indicator idle" id="quotationIndicator"></div>
+            <span class="status-text" id="quotationStatusText">No file selected</span>
+          </div>
+          <div class="file-name-display" id="quotationFileName"></div>
+        </div>
+      </div>
+
+      <!-- Analyze Button -->
+      <div class="sidebar-section">
+        <button class="analyze-btn" id="analyzeBtn" disabled>
+          <span class="btn-icon">&#9654;</span>
+          Analyze &amp; Benchmark
+        </button>
+        <p class="analyze-hint" id="analyzeHint">Upload both files to enable analysis</p>
+      </div>
+
+      <!-- Upload Progress -->
+      <div class="sidebar-section">
+        <h3 class="sidebar-section-title">Upload Progress</h3>
+        <div class="progress-item">
+          <span class="progress-label">Benchmark File</span>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" id="benchmarkProgress" style="width:0%"></div>
+          </div>
+          <span class="progress-pct" id="benchmarkPct">0%</span>
+        </div>
+        <div class="progress-item">
+          <span class="progress-label">Project Quotation</span>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" id="quotationProgress" style="width:0%"></div>
+          </div>
+          <span class="progress-pct" id="quotationPct">0%</span>
+        </div>
+      </div>
+
+      <!-- Sidebar Footer -->
+      <div class="sidebar-footer">
+        <span>Aldar Properties &copy; 2024</span>
+        <span class="sidebar-version">v1.0.0</span>
+      </div>
+
+    </aside>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <main class="main-content">
+
+      <!-- Tab Navigation -->
+      <nav class="tab-nav">
+        <button class="tab-btn active" data-tab="summary">Summary</button>
+        <button class="tab-btn" data-tab="detailed">Detailed Analysis</button>
+        <button class="tab-btn" data-tab="comparison">Comparison Matrix</button>
+        <button class="tab-btn" data-tab="variance">Variance Report</button>
+        <button class="tab-btn" data-tab="export">Export Options</button>
+      </nav>
+
+      <!-- Tab Panels -->
+      <div class="tab-content">
+
+        <!-- ── SUMMARY TAB ── -->
+        <div class="tab-panel active" id="tab-summary">
+          <!-- Welcome / Instruction State -->
+          <div class="welcome-box" id="welcomeBox">
+            <div class="welcome-icon">&#128202;</div>
+            <h2 class="welcome-title">Ready to Benchmark</h2>
+            <p class="welcome-text">
+              Upload your benchmark master file and project quotation using the
+              controls on the left to begin the analysis.
+            </p>
+            <div class="welcome-steps">
+              <div class="step" id="step1">
+                <div class="step-num">1</div>
+                <div class="step-desc">
+                  <strong>Upload Benchmark File</strong>
+                  <span>Load the master rate reference (XLSX)</span>
+                </div>
+                <div class="step-check" id="step1Check">&#10003;</div>
+              </div>
+              <div class="step" id="step2">
+                <div class="step-num">2</div>
+                <div class="step-desc">
+                  <strong>Upload Project Quotation</strong>
+                  <span>Load the project BOQ for comparison (XLSX)</span>
+                </div>
+                <div class="step-check" id="step2Check">&#10003;</div>
+              </div>
+              <div class="step" id="step3">
+                <div class="step-num">3</div>
+                <div class="step-desc">
+                  <strong>Analyze &amp; Benchmark</strong>
+                  <span>Run variance analysis across all line items</span>
+                </div>
+                <div class="step-check" id="step3Check">&#10003;</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Summary KPI cards (shown after analysis) -->
+          <div class="kpi-grid hidden" id="kpiGrid">
+            <div class="kpi-card">
+              <span class="kpi-label">Total Items Compared</span>
+              <span class="kpi-value" id="kpiItems">—</span>
+            </div>
+            <div class="kpi-card accent-green">
+              <span class="kpi-label">Items Within Benchmark</span>
+              <span class="kpi-value" id="kpiWithin">—</span>
+            </div>
+            <div class="kpi-card accent-red">
+              <span class="kpi-label">Items Exceeding Benchmark</span>
+              <span class="kpi-value" id="kpiExceeding">—</span>
+            </div>
+            <div class="kpi-card accent-gold">
+              <span class="kpi-label">Average Variance</span>
+              <span class="kpi-value" id="kpiVariance">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── DETAILED ANALYSIS TAB ── -->
+        <div class="tab-panel" id="tab-detailed">
+          <div class="placeholder-panel">
+            <div class="placeholder-icon">&#128269;</div>
+            <h3>Detailed Analysis</h3>
+            <p>Line-by-line rate comparison will appear here after running analysis.</p>
+          </div>
+        </div>
+
+        <!-- ── COMPARISON MATRIX TAB ── -->
+        <div class="tab-panel" id="tab-comparison">
+          <div class="placeholder-panel">
+            <div class="placeholder-icon">&#128200;</div>
+            <h3>Comparison Matrix</h3>
+            <p>Side-by-side benchmark vs. quotation matrix will appear here after running analysis.</p>
+          </div>
+        </div>
+
+        <!-- ── VARIANCE REPORT TAB ── -->
+        <div class="tab-panel" id="tab-variance">
+          <div class="placeholder-panel">
+            <div class="placeholder-icon">&#128208;</div>
+            <h3>Variance Report</h3>
+            <p>Full variance breakdown with flagged items will appear here after running analysis.</p>
+          </div>
+        </div>
+
+        <!-- ── EXPORT OPTIONS TAB ── -->
+        <div class="tab-panel" id="tab-export">
+          <div class="placeholder-panel">
+            <div class="placeholder-icon">&#128190;</div>
+            <h3>Export Options</h3>
+            <p>Export reports to PDF, Excel, or CSV will be available here after running analysis.</p>
+          </div>
+        </div>
+
+      </div><!-- /tab-content -->
+
+    </main>
+  </div><!-- /app-wrapper -->
+
+  <script src="app.js"></script>
+</body>
+</html>
