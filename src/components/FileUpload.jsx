@@ -71,7 +71,7 @@ export default function FileUpload({
           checksum,
         }
 
-        onUpload(meta)
+        onUpload(meta, file)
         setStatus('success')
       } catch {
         setStatus('error')

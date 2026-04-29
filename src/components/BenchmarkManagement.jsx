@@ -1,12 +1,21 @@
 import { useApp } from '../context/AppContext'
 import FileUpload from './FileUpload'
+import { formatAED, toLabel } from '../data/transforms'
 
 export default function BenchmarkManagement() {
-  const { benchmarkFile, handleBenchmarkUpload, clearFile } = useApp()
+  const {
+    benchmarkFile,
+    benchmarkStore,
+    validation,
+    parsing,
+    parseError,
+    handleBenchmarkUpload,
+    clearFile,
+  } = useApp()
 
   return (
     <div className="grid gap-6">
-      {/* Page intro */}
+      {/* Hero card */}
       <div className="card bg-gradient-to-r from-navy-500 to-navy-600 text-white border-0">
         <div className="flex items-start gap-4">
           <div className="p-3 bg-white/10 rounded-xl">
@@ -22,37 +31,224 @@ export default function BenchmarkManagement() {
         </div>
       </div>
 
-      {/* Upload zone */}
-      <div className="max-w-2xl">
-        <FileUpload
-          id="benchmark-upload"
-          title="Upload Benchmark Master"
-          description="Upload the latest benchmark master .xlsx to update rate baselines."
-          accentColor="gold"
-          currentFile={benchmarkFile}
-          onUpload={handleBenchmarkUpload}
-          onClear={() => clearFile('benchmark')}
-        />
-      </div>
+      <div className="grid lg:grid-cols-2 gap-6 items-start">
+        {/* Left: upload */}
+        <div className="flex flex-col gap-4">
+          <FileUpload
+            id="benchmark-upload"
+            title="Upload Benchmark Master"
+            description="Upload the latest benchmark master .xlsx to update rate baselines."
+            accentColor="gold"
+            currentFile={benchmarkFile}
+            onUpload={handleBenchmarkUpload}
+            onClear={() => clearFile('benchmark')}
+          />
 
-      {/* Guidance card */}
-      <div className="card max-w-2xl border-gold-200 bg-gold-50">
-        <h4 className="text-sm font-semibold text-gold-700 mb-3 flex items-center gap-2">
-          <InfoIcon />
-          Expected File Format
-        </h4>
-        <ul className="text-sm text-gold-800 space-y-1.5 list-disc list-inside">
-          <li>Column A – Work Section / Trade</li>
-          <li>Column B – Item Description</li>
-          <li>Column C – Unit of Measure</li>
-          <li>Column D – Benchmark Low Rate (AED)</li>
-          <li>Column E – Benchmark High Rate (AED)</li>
-          <li>Column F – Source / Reference Project</li>
-        </ul>
+          {/* Parse spinner */}
+          {parsing && (
+            <div className="flex items-center gap-3 bg-navy-50 border border-navy-200 rounded-xl px-4 py-3 text-sm text-navy-700">
+              <SpinnerIcon />
+              Parsing Excel sheets and building benchmark index…
+            </div>
+          )}
+
+          {/* Parse error */}
+          {parseError && !parsing && (
+            <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+              <AlertIcon />
+              <div>
+                <p className="font-medium">Parse error</p>
+                <p className="mt-0.5 text-red-600">{parseError}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Validation report */}
+          {validation && !parsing && (
+            <ValidationCard report={validation} />
+          )}
+        </div>
+
+        {/* Right: data stats / format guide */}
+        <div className="flex flex-col gap-4">
+          {benchmarkStore ? (
+            <StoreStats store={benchmarkStore} />
+          ) : (
+            <FormatGuide />
+          )}
+        </div>
       </div>
     </div>
   )
 }
+
+// ─── Sub-components ────────────────────────────────────────────────────────────
+
+function ValidationCard({ report }) {
+  const hasErrors   = report.errors.length > 0
+  const hasWarnings = report.warnings.length > 0
+
+  return (
+    <div className={`card border ${hasErrors ? 'border-red-200 bg-red-50' : hasWarnings ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+      <div className="flex items-center gap-2 mb-3">
+        {hasErrors
+          ? <><AlertIcon className="text-red-500" /><span className="text-sm font-semibold text-red-700">Validation failed</span></>
+          : hasWarnings
+            ? <><WarningIcon className="text-amber-500" /><span className="text-sm font-semibold text-amber-700">Validated with warnings</span></>
+            : <><CheckIcon className="text-emerald-500" /><span className="text-sm font-semibold text-emerald-700">Validation passed</span></>
+        }
+      </div>
+
+      {/* Stats pills */}
+      <div className="flex flex-wrap gap-2 mb-3">
+        {Object.entries(report.stats)
+          .filter(([k]) => ['locationLayer','locationDict','benchmarks','sideBySide'].includes(k))
+          .map(([sheet, s]) => (
+            <span key={sheet} className="status-badge bg-white border border-slate-200 text-slate-600">
+              {toLabel(sheet)}: {s.rowCount ?? '—'} rows
+            </span>
+          ))
+        }
+        {report.stats.categories !== undefined && (
+          <span className="status-badge bg-navy-50 border border-navy-200 text-navy-700">
+            {report.stats.categories} categories
+          </span>
+        )}
+        {report.stats.locations !== undefined && (
+          <span className="status-badge bg-navy-50 border border-navy-200 text-navy-700">
+            {report.stats.locations} locations
+          </span>
+        )}
+        {report.stats.projects !== undefined && (
+          <span className="status-badge bg-gold-50 border border-gold-200 text-gold-700">
+            {report.stats.projects} projects
+          </span>
+        )}
+      </div>
+
+      {/* Error list */}
+      {hasErrors && (
+        <ul className="text-xs text-red-700 space-y-1 mb-2">
+          {report.errors.map((e, i) => (
+            <li key={i} className="flex gap-1.5"><span className="shrink-0">✕</span>{e.message}</li>
+          ))}
+        </ul>
+      )}
+
+      {/* Warning list */}
+      {hasWarnings && (
+        <ul className="text-xs text-amber-700 space-y-1">
+          {report.warnings.map((w, i) => (
+            <li key={i} className="flex gap-1.5"><span className="shrink-0">⚠</span>{w.message}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function StoreStats({ store }) {
+  const categories = store.getCategories()
+  const locations  = store.getLocations()
+  const projects   = store.getProjects()
+
+  // Pick a sample category for a quick preview
+  const sample     = categories[0]
+  const summary    = sample ? store.getCategorySummary(sample) : null
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* KPI row */}
+      <div className="grid grid-cols-3 gap-3">
+        <KpiCard label="Categories" value={categories.length} icon="📦" />
+        <KpiCard label="Locations"  value={locations.length}  icon="📍" />
+        <KpiCard label="Projects"   value={projects.length}   icon="🏗" />
+      </div>
+
+      {/* Projects */}
+      <div className="card">
+        <h4 className="text-sm font-semibold text-slate-700 mb-2">Indexed Projects</h4>
+        <div className="flex flex-wrap gap-2">
+          {projects.map(p => (
+            <span key={p} className="status-badge bg-navy-50 border border-navy-200 text-navy-700">{p}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* Sample category preview */}
+      {summary && (
+        <div className="card">
+          <h4 className="text-sm font-semibold text-slate-700 mb-3">
+            Sample: {toLabel(sample)}
+          </h4>
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+            <StatRow label="Avg rate"  value={formatAED(summary.overallAvg)} />
+            <StatRow label="Min rate"  value={formatAED(summary.overallMin)} />
+            <StatRow label="Max rate"  value={formatAED(summary.overallMax)} />
+            <StatRow label="Locations" value={summary.locationCount} />
+          </dl>
+        </div>
+      )}
+
+      {/* All categories */}
+      <div className="card">
+        <h4 className="text-sm font-semibold text-slate-700 mb-2">All Item Categories</h4>
+        <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1">
+          {categories.map(c => (
+            <span key={c} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-mono">
+              {c}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function KpiCard({ label, value, icon }) {
+  return (
+    <div className="card text-center py-4">
+      <div className="text-2xl mb-1">{icon}</div>
+      <div className="text-2xl font-bold text-navy-500">{value}</div>
+      <div className="text-xs text-slate-500 mt-0.5">{label}</div>
+    </div>
+  )
+}
+
+function StatRow({ label, value }) {
+  return (
+    <>
+      <dt className="text-slate-500">{label}</dt>
+      <dd className="font-medium text-slate-800">{value}</dd>
+    </>
+  )
+}
+
+function FormatGuide() {
+  return (
+    <div className="card border-gold-200 bg-gold-50">
+      <h4 className="text-sm font-semibold text-gold-700 mb-3 flex items-center gap-2">
+        <InfoIcon />
+        Expected Sheets
+      </h4>
+      <ul className="text-sm text-gold-800 space-y-2">
+        {[
+          ['10_LOCATION_LAYER',    'Individual item pricing (Item ID, Category, Project, Rate…)'],
+          ['11_LOCATION_DICT',     'Location normalisation map (verbatim → normalised)'],
+          ['12_LOCATION_BENCHMARK','Aggregated benchmarks by category & location'],
+          ['13_SIDE_BY_SIDE',      'Project-by-project comparison table'],
+        ].map(([sheet, desc]) => (
+          <li key={sheet}>
+            <span className="font-mono text-xs bg-gold-200 text-gold-900 px-1.5 py-0.5 rounded mr-2">{sheet}</span>
+            {desc}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+// ─── Icons ─────────────────────────────────────────────────────────────────────
 
 function DatabaseIcon() {
   return (
@@ -62,6 +258,45 @@ function DatabaseIcon() {
            4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5
            5.625c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125"
       />
+    </svg>
+  )
+}
+
+function SpinnerIcon() {
+  return (
+    <svg className="w-4 h-4 shrink-0 animate-spin text-navy-500" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
+    </svg>
+  )
+}
+
+function AlertIcon({ className = 'text-red-500' }) {
+  return (
+    <svg className={`w-4 h-4 shrink-0 ${className}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round"
+        d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874
+           1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+      />
+    </svg>
+  )
+}
+
+function WarningIcon({ className = 'text-amber-500' }) {
+  return (
+    <svg className={`w-4 h-4 shrink-0 ${className}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round"
+        d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874
+           1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+      />
+    </svg>
+  )
+}
+
+function CheckIcon({ className = 'text-emerald-500' }) {
+  return (
+    <svg className={`w-4 h-4 shrink-0 ${className}`} fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
     </svg>
   )
 }
