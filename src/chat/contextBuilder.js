@@ -1,103 +1,167 @@
 import { formatAED } from '../data/transforms'
 
-// ─── System prompt builder ────────────────────────────────────────────────────
+// ─── Section builders for the three template placeholders ─────────────────────
 
-const BASE_INSTRUCTIONS = `You are an expert procurement analyst AI assistant for Aldar Properties, a leading UAE real estate developer. You help procurement managers and cost engineers understand BOQ (Bill of Quantities) analysis results, benchmark rates, and cost deviations.
+function buildBenchmarkSummary(ctx) {
+  if (!ctx?.hasBenchmark || !ctx.benchmark) {
+    return 'No benchmark data loaded. Ask the user to upload the Benchmark Master .xlsx first.'
+  }
 
-Your role:
-- Analyse benchmark data and project quotations for UAE construction projects
-- Identify cost overruns, underpricing risks, and areas for negotiation
-- Explain flag categories: Overpriced (>+30%), Slightly Expensive (+15–30%), Competitive (±15%), Underpriced (<-15%)
-- Reference specific item descriptions, AED rates, and deviation percentages in your answers
-- Provide actionable procurement recommendations grounded in the data
-- Use UAE construction market context (Abu Dhabi, Dubai, Al Ain, etc.)
+  const { categories, projects, locations } = ctx.benchmark
+  const lines = [
+    `Benchmark master is loaded with the following coverage:`,
+    `- Reference projects: ${projects.join(', ')}`,
+    `- Locations covered: ${locations.join(', ')}`,
+    `- Item categories (${categories.length} total): ${categories.slice(0, 25).join(', ')}${categories.length > 25 ? ` … (+${categories.length - 25} more)` : ''}`,
+  ]
+  return lines.join('\n')
+}
 
-Formatting rules:
-- Use markdown: **bold** for key figures, bullet lists for recommendations, tables when comparing rates
-- Always format currency as AED X,XXX or AED X.XXXm
-- Keep answers concise but data-driven
-- If asked about items not in the loaded data, say so clearly rather than guessing`
+function buildAnalysisSummary(ctx) {
+  if (!ctx?.hasAnalysis) {
+    if (ctx?.hasBenchmark) {
+      return 'No project BOQ has been analysed yet. The user needs to upload a project quotation file in the "Project Analysis" tab.'
+    }
+    return 'No analysis data available. Neither benchmark nor project BOQ has been loaded.'
+  }
+
+  const { summary, financials, flags, topCategories, topOffenders, unmatchedCount, narrative, projectName, generatedAt } = ctx
+
+  const lines = [
+    `Project: ${projectName}`,
+    `Analysed: ${new Date(generatedAt).toLocaleString('en-AE')}`,
+    ``,
+    `SUMMARY:`,
+    `- Total BOQ items: ${summary.totalItems}`,
+    `- Benchmark match rate: ${summary.matchRate?.toFixed(1)}%`,
+    `- Flagged items: ${summary.flaggedItems} (${summary.flagRate?.toFixed(1)}% of matched)`,
+    `- Unmatched items: ${unmatchedCount}`,
+    ``,
+    `FINANCIAL EXPOSURE:`,
+    `- Total BOQ value: ${formatAED(financials.totalBOQValue)}`,
+    `- Estimated overpayment: ${formatAED(financials.overpaymentAED)}`,
+    `- Estimated underpayment: ${formatAED(financials.underpaymentAED)}`,
+    `- Net variance vs benchmark: ${formatAED(financials.netVarianceAED)}`,
+    ``,
+    `FLAG DISTRIBUTION:`,
+    `- Overpriced (>+30%): ${flags.overpriced ?? 0} items`,
+    `- Slightly Expensive (+15–30%): ${flags.slightly_expensive ?? 0} items`,
+    `- Competitive (±15%): ${flags.competitive ?? 0} items`,
+    `- Underpriced (<-15%): ${flags.underpriced ?? 0} items`,
+  ]
+
+  if (topCategories?.length) {
+    lines.push(``, `TOP CATEGORIES BY OVERPAYMENT:`)
+    topCategories.forEach(c => {
+      const sign = c.avgDeviation > 0 ? '+' : ''
+      lines.push(`- ${c.label}: avg deviation ${sign}${c.avgDeviation?.toFixed(1)}%, overpayment ${formatAED(c.overpayAED)}, ${c.itemCount} items, worst flag: ${c.worstFlag}`)
+    })
+  }
+
+  if (topOffenders?.length) {
+    lines.push(``, `TOP COST EXPOSURE ITEMS:`)
+    topOffenders.forEach((r, i) => {
+      const sign = r.deviation > 0 ? '+' : ''
+      lines.push(`${i + 1}. ${r.description?.slice(0, 90)} — ${formatAED(r.rate)} quoted vs ${formatAED(r.benchmarkAvg)} benchmark (${sign}${r.deviation?.toFixed(1)}%), qty: ${r.quantity}`)
+    })
+  }
+
+  if (narrative) {
+    lines.push(``, `ANALYST NARRATIVE:`, narrative)
+  }
+
+  return lines.join('\n')
+}
+
+function buildAvailableQueries(ctx) {
+  const base = [
+    `"What's the average benchmark rate for [category]?"`,
+    `"Which items should we negotiate first?"`,
+    `"Where is the highest overpayment exposure?"`,
+    `"Is [rate] a good price for [item]?"`,
+    `"Explain why [item] is flagged as overpriced."`,
+  ]
+
+  if (ctx?.hasAnalysis && ctx?.benchmark?.projects?.length > 1) {
+    base.push(`"How does this project compare to ${ctx.benchmark.projects.slice(0, 2).join(' or ')}?"`)
+  }
+
+  if (ctx?.hasAnalysis) {
+    base.push(`"Give me an executive summary I can share with the team."`)
+    base.push(`"Which categories are below benchmark and should we be concerned about quality?"`)
+  }
+
+  return base.join('\n')
+}
+
+// ─── Main export ─────────────────────────────────────────────────────────────
 
 /**
- * Build the full system prompt combining base instructions with live context data.
- * The result is used as the system message with prompt caching.
+ * Build the full system prompt using the specified Aldar template,
+ * with the three {{PLACEHOLDER}} blocks populated from live context.
  *
  * @param {import('../analysis/StorageManager').ChatbotContext | null} ctx
  * @returns {string}
  */
 export function buildSystemPrompt(ctx) {
-  const sections = [BASE_INSTRUCTIONS]
+  const benchmarkSummary  = buildBenchmarkSummary(ctx)
+  const analysisSummary   = buildAnalysisSummary(ctx)
+  const availableQueries  = buildAvailableQueries(ctx)
 
-  if (!ctx || (!ctx.hasAnalysis && !ctx.hasBenchmark)) {
-    sections.push(`
-## Current Session State
-No data is currently loaded. Ask the user to upload the Benchmark Master and/or a Project BOQ via the dashboard tabs before querying specific rates or deviations.`)
-    return sections.join('\n\n')
-  }
+  return `You are a procurement intelligence assistant for Aldar construction projects in the UAE.
 
-  if (ctx.hasBenchmark && ctx.benchmark) {
-    const { categories, projects, locations } = ctx.benchmark
-    sections.push(`
-## Benchmark Data Available
-- **Categories**: ${categories.slice(0, 30).join(', ')}${categories.length > 30 ? ` … (+${categories.length - 30} more)` : ''}
-- **Reference projects**: ${projects.join(', ')}
-- **Locations covered**: ${locations.join(', ')}`)
-  }
+EXPERTISE:
+- Sanitaryware, fixtures, fittings, and MEP procurement
+- Benchmark analysis across multiple projects
+- Cost optimization and supplier negotiation
+- BOQ analysis and deviation detection
 
-  if (!ctx.hasAnalysis) {
-    sections.push(`\n## Analysis Status\nBenchmark master is loaded but no project BOQ has been analysed yet. Upload a project file in the "Project Analysis" tab.`)
-    return sections.join('\n\n')
-  }
+AVAILABLE DATA:
+${benchmarkSummary}
 
-  // Full analysis context
-  const { summary, financials, flags, topCategories, topOffenders, unmatchedCount, narrative } = ctx
+${analysisSummary}
 
-  sections.push(`
-## Current Project Analysis
-**Project**: ${ctx.projectName}
-**Analysed at**: ${new Date(ctx.generatedAt).toLocaleString('en-AE')}
+AVAILABLE QUERIES (examples of what you can answer):
+${availableQueries}
 
-### Summary
-- Total items: **${summary.totalItems}**
-- Matched to benchmark: **${summary.matchRate?.toFixed(1)}%**
-- Flagged items: **${summary.flaggedItems}** (${summary.flagRate?.toFixed(1)}% of matched)
-- Unmatched items: ${unmatchedCount}
+YOUR CAPABILITIES:
+1. Answer questions about benchmark rates
+   - "What's the average price for a basin mixer in residential units?"
+   - "How much did we pay for WCs across projects?"
 
-### Financial Exposure
-- Total BOQ value: **${formatAED(financials.totalBOQValue)}**
-- Estimated overpayment: **${formatAED(financials.overpaymentAED)}**
-- Estimated underpayment: ${formatAED(financials.underpaymentAED)}
-- Net variance: ${formatAED(financials.netVarianceAED)}
+2. Explain deviations and flags
+   - "Why is item X overpriced?"
+   - "Is this basin mixer a good deal at AED 666?"
 
-### Flag Distribution
-- 🔴 Overpriced (>+30%): **${flags.overpriced ?? 0} items**
-- 🟡 Slightly Expensive (+15–30%): **${flags.slightly_expensive ?? 0} items**
-- 🟢 Competitive (±15%): **${flags.competitive ?? 0} items**
-- 🔵 Underpriced (<-15%): **${flags.underpriced ?? 0} items**`)
+3. Provide recommendations
+   - "Which items should we negotiate?"
+   - "What's a fair price for category Y?"
 
-  if (topCategories?.length) {
-    sections.push(`
-### Top Categories by Exposure
-${topCategories.map(c =>
-  `- **${c.label}**: avg deviation ${c.avgDeviation > 0 ? '+' : ''}${c.avgDeviation?.toFixed(1)}%, overpayment ${formatAED(c.overpayAED)} (${c.itemCount} items, worst flag: ${c.worstFlag})`
-).join('\n')}`)
-  }
+4. Compare projects and items
+   - "How does this project compare to Sama Yas?"
+   - "Which project has the lowest basin mixer prices?"
 
-  if (topOffenders?.length) {
-    sections.push(`
-### Top Cost Exposure Items
-${topOffenders.map((r, i) =>
-  `${i + 1}. **${r.description?.slice(0, 80)}** — ${formatAED(r.rate)} vs ${formatAED(r.benchmarkAvg)} benchmark (+${r.deviation?.toFixed(1)}%), qty ${r.quantity}`
-).join('\n')}`)
-  }
+5. Identify cost opportunities
+   - "Where can we save the most?"
+   - "Which categories have the highest overpayment?"
 
-  if (narrative) {
-    sections.push(`
-### Analyst Narrative
-${narrative}`)
-  }
+RESPONSE FORMAT:
+- Concise, professional tone
+- Use bullet points for lists
+- Always reference specific numbers (rates, projects, percentages)
+- Bold key figures: **AED 666** or **45% above benchmark**
+- For recommendations, provide 2-3 actionable next steps
 
-  return sections.join('\n\n')
+PRICING GUIDANCE:
+- Competitive: ±15% of benchmark average
+- Slightly Expensive: +15% to +30%
+- Overpriced: >+30% (recommend negotiation)
+- Underpriced: <-15% (flag quality risks)
+
+TONE:
+- Helpful and pragmatic
+- Risk-aware (mention if prices are unusually low)
+- Procurement-focused`
 }
 
 /**
