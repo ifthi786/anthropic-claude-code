@@ -1,6 +1,40 @@
+import { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import FileUpload from './FileUpload'
 import { formatAED, toLabel } from '../data/transforms'
+
+// ─── Category product icon map ────────────────────────────────────────────────
+
+const CATEGORY_META = {
+  BASIN_MIXER:           { emoji: '🚿', label: 'Basin Mixer',           color: 'bg-blue-50 border-blue-200' },
+  FREESTANDING_BASIN:    { emoji: '🪣', label: 'Freestanding Basin',    color: 'bg-sky-50 border-sky-200' },
+  UNDERCOUNTER_BASIN:    { emoji: '🪣', label: 'Undercounter Basin',    color: 'bg-cyan-50 border-cyan-200' },
+  SEMI_RECESSED_BASIN:   { emoji: '🪣', label: 'Semi-Recessed Basin',   color: 'bg-teal-50 border-teal-200' },
+  WASH_BASIN_GENERIC:    { emoji: '🪣', label: 'Wash Basin',            color: 'bg-sky-50 border-sky-200' },
+  WC_GENERIC:            { emoji: '🚽', label: 'WC (Generic)',          color: 'bg-slate-50 border-slate-200' },
+  WC_SEAT:               { emoji: '🚽', label: 'WC Seat',               color: 'bg-slate-50 border-slate-200' },
+  WALL_HUNG_WC:          { emoji: '🚽', label: 'Wall-Hung WC',          color: 'bg-zinc-50 border-zinc-200' },
+  WALL_HUNG_BASIN:       { emoji: '🪣', label: 'Wall-Hung Basin',       color: 'bg-blue-50 border-blue-200' },
+  SMART_WC:              { emoji: '🤖', label: 'Smart WC',              color: 'bg-violet-50 border-violet-200' },
+  URINAL:                { emoji: '🚻', label: 'Urinal',                color: 'bg-indigo-50 border-indigo-200' },
+  SHOWER_HEAD:           { emoji: '🚿', label: 'Shower Head',           color: 'bg-blue-50 border-blue-200' },
+  SHOWER_MIXER:          { emoji: '🚿', label: 'Shower Mixer',          color: 'bg-blue-50 border-blue-200' },
+  SHOWER_SET:            { emoji: '🚿', label: 'Shower Set',            color: 'bg-sky-50 border-sky-200' },
+  FREESTANDING_BATHTUB:  { emoji: '🛁', label: 'Freestanding Bathtub',  color: 'bg-purple-50 border-purple-200' },
+  HAND_SHOWER:           { emoji: '🚿', label: 'Hand Shower',           color: 'bg-blue-50 border-blue-200' },
+  WALL_SPOUT:            { emoji: '🔧', label: 'Wall Spout',            color: 'bg-gray-50 border-gray-200' },
+  BATH_MIXER:            { emoji: '🛁', label: 'Bath Mixer',            color: 'bg-purple-50 border-purple-200' },
+  KITCHEN_MIXER:         { emoji: '🍳', label: 'Kitchen Mixer',         color: 'bg-orange-50 border-orange-200' },
+  TOWEL_RAIL:            { emoji: '🏮', label: 'Towel Rail',            color: 'bg-amber-50 border-amber-200' },
+  TOILET_ROLL_HOLDER:    { emoji: '🧻', label: 'Toilet Roll Holder',    color: 'bg-yellow-50 border-yellow-200' },
+  SOAP_DISPENSER:        { emoji: '🧴', label: 'Soap Dispenser',        color: 'bg-green-50 border-green-200' },
+  MIRROR:                { emoji: '🪞', label: 'Mirror',                color: 'bg-rose-50 border-rose-200' },
+  ACCESSORY_SET:         { emoji: '🔧', label: 'Accessory Set',         color: 'bg-gray-50 border-gray-200' },
+}
+
+function getCategoryMeta(cat) {
+  return CATEGORY_META[cat] ?? { emoji: '📦', label: toLabel(cat), color: 'bg-slate-50 border-slate-200' }
+}
 
 export default function BenchmarkManagement() {
   const {
@@ -151,10 +185,9 @@ function StoreStats({ store }) {
   const categories = store.getCategories()
   const locations  = store.getLocations()
   const projects   = store.getProjects()
+  const [selected, setSelected] = useState(null)
 
-  // Pick a sample category for a quick preview
-  const sample     = categories[0]
-  const summary    = sample ? store.getCategorySummary(sample) : null
+  const selectedSummary = selected ? store.getCategorySummary(selected) : null
 
   return (
     <div className="flex flex-col gap-4">
@@ -175,32 +208,127 @@ function StoreStats({ store }) {
         </div>
       </div>
 
-      {/* Sample category preview */}
-      {summary && (
-        <div className="card">
-          <h4 className="text-sm font-semibold text-slate-700 mb-3">
-            Sample: {toLabel(sample)}
-          </h4>
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-            <StatRow label="Avg rate"  value={formatAED(summary.overallAvg)} />
-            <StatRow label="Min rate"  value={formatAED(summary.overallMin)} />
-            <StatRow label="Max rate"  value={formatAED(summary.overallMax)} />
-            <StatRow label="Locations" value={summary.locationCount} />
-          </dl>
-        </div>
+      {/* Category detail panel */}
+      {selected && selectedSummary && (
+        <CategoryDetailCard
+          category={selected}
+          summary={selectedSummary}
+          store={store}
+          onClose={() => setSelected(null)}
+        />
       )}
 
-      {/* All categories */}
+      {/* Product category grid */}
       <div className="card">
-        <h4 className="text-sm font-semibold text-slate-700 mb-2">All Item Categories</h4>
-        <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1">
-          {categories.map(c => (
-            <span key={c} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-mono">
-              {c}
-            </span>
-          ))}
+        <h4 className="text-sm font-semibold text-slate-700 mb-3">
+          All Products — click to view rates
+        </h4>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-96 overflow-y-auto pr-1">
+          {categories.map(cat => {
+            const meta    = getCategoryMeta(cat)
+            const summary = store.getCategorySummary(cat)
+            return (
+              <button
+                key={cat}
+                onClick={() => setSelected(selected === cat ? null : cat)}
+                className={[
+                  'flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center',
+                  'hover:shadow-md transition-all duration-150 cursor-pointer',
+                  selected === cat
+                    ? 'border-navy-400 bg-navy-50 shadow-md ring-2 ring-navy-300'
+                    : `${meta.color} hover:border-navy-300`,
+                ].join(' ')}
+              >
+                <span className="text-2xl">{meta.emoji}</span>
+                <span className="text-xs font-medium text-slate-700 leading-tight">{meta.label}</span>
+                {summary && (
+                  <span className="text-[10px] text-slate-500 font-mono">
+                    {formatAED(summary.overallAvg)} avg
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
       </div>
+    </div>
+  )
+}
+
+function CategoryDetailCard({ category, summary, store, onClose }) {
+  const meta      = getCategoryMeta(category)
+  const locations = store.getLocations()
+
+  // Get per-location rates for this category
+  const locationRates = locations
+    .map(loc => {
+      const benchmarks = store.findByCategory(category).filter(r => r.normLocation === loc)
+      if (!benchmarks.length) return null
+      const avg = benchmarks.reduce((s, r) => s + (r.avgRate ?? 0), 0) / benchmarks.length
+      return { location: loc, avgRate: avg, count: benchmarks.length }
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.avgRate - a.avgRate)
+
+  return (
+    <div className="card border-navy-200 bg-navy-50">
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <div className={`w-12 h-12 rounded-xl border flex items-center justify-center text-2xl ${meta.color}`}>
+            {meta.emoji}
+          </div>
+          <div>
+            <h4 className="text-sm font-semibold text-navy-800">{meta.label}</h4>
+            <p className="text-xs text-navy-500 font-mono">{category}</p>
+          </div>
+        </div>
+        <button
+          onClick={onClose}
+          className="text-slate-400 hover:text-slate-600 p-1 rounded"
+        >✕</button>
+      </div>
+
+      {/* Rate summary */}
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        {[
+          { label: 'Avg Rate',  value: formatAED(summary.overallAvg) },
+          { label: 'Min Rate',  value: formatAED(summary.overallMin) },
+          { label: 'Max Rate',  value: formatAED(summary.overallMax) },
+        ].map(({ label, value }) => (
+          <div key={label} className="bg-white rounded-lg p-2 text-center border border-navy-100">
+            <p className="text-[10px] text-slate-500">{label}</p>
+            <p className="text-xs font-semibold text-navy-700 mt-0.5">{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Per-location rates */}
+      {locationRates.length > 0 && (
+        <>
+          <p className="text-[10px] font-semibold text-navy-600 uppercase tracking-wide mb-1.5">
+            Rate by Location
+          </p>
+          <div className="space-y-1 max-h-40 overflow-y-auto">
+            {locationRates.map(({ location, avgRate }) => {
+              const pct = summary.overallMax > 0 ? (avgRate / summary.overallMax) * 100 : 0
+              return (
+                <div key={location} className="flex items-center gap-2">
+                  <span className="text-[10px] text-slate-600 w-28 shrink-0 truncate">{location}</span>
+                  <div className="flex-1 bg-navy-100 rounded-full h-1.5">
+                    <div
+                      className="bg-navy-400 h-1.5 rounded-full"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-mono text-navy-700 w-20 text-right shrink-0">
+                    {formatAED(avgRate)}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
     </div>
   )
 }

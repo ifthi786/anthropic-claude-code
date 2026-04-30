@@ -130,7 +130,27 @@ export class DataValidator {
     }
 
     // ── locationLayer (sheet 10) ─────────────────────────────────────────────
-    errors.push(...checkRequiredFields('locationLayer', locationLayer))
+    // itemId and rate are hard requirements; category/project/location are soft
+    const layerStrictIssues = checkRequiredFields('locationLayer',
+      locationLayer.map(r => ({ itemId: r.itemId, rate: r.rate }))
+    )
+    errors.push(...layerStrictIssues)
+
+    // Soft fields — missing in a few rows is common in real Excel files, warn only
+    for (const field of ['category', 'project', 'normLocation']) {
+      const missing = locationLayer.reduce((acc, row, i) => {
+        if (row[field] === undefined || row[field] === null || row[field] === '') acc.push(i + 1)
+        return acc
+      }, [])
+      if (missing.length) {
+        warnings.push(warn(
+          `MISSING_FIELD_${field.toUpperCase()}`,
+          `Sheet "locationLayer": field "${field}" is missing in ${missing.length} row(s).`,
+          { rowNumbers: missing.slice(0, 10) }
+        ))
+      }
+    }
+
     errors.push(...checkNumericField('locationLayer', locationLayer, 'rate', 'Rate (AED)'))
     warnings.push(...checkRateRange('locationLayer', locationLayer, 'rate', 1, 500_000))
 
