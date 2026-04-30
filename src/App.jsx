@@ -3,6 +3,7 @@ import { AppProvider } from './context/AppContext'
 import TabNavigation from './components/TabNavigation'
 import BenchmarkManagement from './components/BenchmarkManagement'
 import ProjectAnalysis from './components/ProjectAnalysis'
+import ChatbotPanel from './components/ChatbotPanel'
 import aldarLogo from '../aldar logo.jpeg'
 
 function Dashboard() {
@@ -63,11 +64,16 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* ── Main content ───────────────────────────────────────────────── */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeTab === 'benchmark' && <BenchmarkManagement />}
-        {activeTab === 'analysis'  && <ProjectAnalysis />}
-      </main>
+      {/* ── Main content + Chat sidebar ───────────────────────────────── */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="max-w-5xl mx-auto">
+            {activeTab === 'benchmark' && <BenchmarkManagement />}
+            {activeTab === 'analysis'  && <ProjectAnalysis />}
+          </div>
+        </main>
+        <ChatbotPanel />
+      </div>
 
       {/* ── Footer ─────────────────────────────────────────────────────── */}
       <footer className="border-t border-slate-200 bg-white">
