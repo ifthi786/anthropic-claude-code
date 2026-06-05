@@ -1,24 +1,27 @@
 #!/usr/bin/env python3
 """
-ARR Dashboard rebuild pipeline -- Excel-reading half.
+ARR Dashboard rebuild pipeline.
 
-Reads the "Total Summary" sheet of the ARR tracker workbook and renders the
+Reads the "Total Summary" sheet of the ARR tracker workbook, renders the
 JavaScript data module that lives inside the <script id="arr-data"> block of
-template.html. Only the *data literals* are generated here; the surrounding
-scaffolding (comment banner, savingPct line, the formatter functions) is
-emitted verbatim to match the template exactly.
+template.html, and swaps that module into the template to produce the final
+HTML. Only the *data literals* are generated; the surrounding scaffolding
+(comment banner, savingPct line, the formatter functions) is emitted verbatim
+to match the template exactly, and every byte outside the data block is copied
+through untouched.
 
 Usage:
-    python rebuild.py --xlsx ARR_-_Tracker.xlsx --print-module
+    # Default: swap the freshly rendered module into the template.
+    python rebuild.py --xlsx ARR_-_Tracker.xlsx --template template.html --out index.html
 
-The HTML half (injecting the module back into template.html) is a later step;
-this file deliberately does not touch the HTML beyond reading it to verify that
-the emitted scaffolding still matches the template verbatim.
+    # Preview just the JS module (also writes module_preview.js).
+    python rebuild.py --xlsx ARR_-_Tracker.xlsx --print-module
 """
 
 import argparse
 import datetime
 import os
+import re
 import sys
 
 import openpyxl
@@ -340,44 +343,132 @@ def run_checks(data, template_block):
 
 
 # ---------------------------------------------------------------------------
+# HTML swap (template -> output) + self-test
+# ---------------------------------------------------------------------------
+
+# The one-and-only data block. DOTALL so the multi-line inner JS is captured;
+# non-greedy so we stop at the first </script>.
+ARR_DATA_RE = re.compile(r'(<script id="arr-data">)(.*?)(</script>)', re.DOTALL)
+
+# Internal sentinel used only to compare everything *outside* the block.
+_BLOCK_SENTINEL = "\x00ARR-DATA-BLOCK\x00"
+
+
+def find_arr_data_blocks(html):
+    """Return all <script id="arr-data"> match objects in `html`."""
+    return list(ARR_DATA_RE.finditer(html))
+
+
+def swap_arr_data(template_html, module_text):
+    """Return `template_html` with the data block's inner content replaced.
+
+    The opening/closing tags and every byte outside the block are preserved
+    exactly. Fails loudly unless there is exactly one matching element.
+    """
+    matches = find_arr_data_blocks(template_html)
+    if len(matches) != 1:
+        raise RuntimeError(
+            'expected exactly one <script id="arr-data"> element in template, '
+            "found %d" % len(matches))
+    m = matches[0]
+    inner = "\n" + module_text + "\n"
+    return (template_html[:m.start()]
+            + m.group(1) + inner + m.group(3)
+            + template_html[m.end():])
+
+
+def run_self_test(template_html, out_html, data):
+    """Validate the swapped output; return (results, summary).
+
+    `results` is a list of (label, passed); `summary` is a one-line string.
+    """
+    out_blocks = find_arr_data_blocks(out_html)
+    exactly_one = len(out_blocks) == 1
+    block = out_blocks[0].group(0) if exactly_one else ""
+
+    # Replace the whole block with the same sentinel in both, then the
+    # remainders must be byte-for-byte identical.
+    t_rest = ARR_DATA_RE.sub(lambda _m: _BLOCK_SENTINEL, template_html)
+    o_rest = ARR_DATA_RE.sub(lambda _m: _BLOCK_SENTINEL, out_html)
+
+    results = [
+        ("output has exactly one arr-data block", exactly_one),
+        ('block contains "window.ARR"', "window.ARR" in block),
+        ("block contains headline 345332802.19", "345332802.19" in block),
+        ("every byte outside the block is identical to template", t_rest == o_rest),
+    ]
+    summary = ("SUMMARY: packages=%d  locations=%d  staff=%d  months=%d"
+               % (data["totals"]["packages"], len(data["locations"]),
+                  len(data["staff"]), len(data["months"])))
+    return results, summary
+
+
+def _print_results(title, checks, stream=sys.stderr):
+    """Print a PASS/FAIL block; return True iff all checks passed."""
+    print(title, file=stream)
+    all_pass = True
+    for label, ok in checks:
+        print(("PASS" if ok else "FAIL") + "  " + label, file=stream)
+        all_pass = all_pass and ok
+    print("RESULT: " + ("ALL PASS" if all_pass else "SOME FAILED"), file=stream)
+    return all_pass
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="Rebuild the ARR dashboard JS data module from the Excel tracker.")
+        description="Rebuild the ARR dashboard HTML from the Excel tracker.")
     parser.add_argument("--xlsx", required=True,
                         help="Path to the ARR tracker .xlsx")
+    parser.add_argument("--template",
+                        help="Path to the plain-HTML template (swap mode)")
+    parser.add_argument("--out",
+                        help="Where to write the rebuilt HTML (swap mode)")
     parser.add_argument("--print-module", action="store_true",
-                        help="Read 'Total Summary' and print the JS data module to stdout "
+                        help="Instead of swapping, print the JS module to stdout "
                              "(also written to module_preview.js)")
     args = parser.parse_args(argv)
 
     data = read_workbook(args.xlsx)
     module_text = render_module(data)
 
+    # ---- Mode: --print-module (preview the JS module + data quick-checks) ---
     if args.print_module:
         sys.stdout.write(module_text + "\n")
         with open("module_preview.js", "w", encoding="utf-8") as fh:
             fh.write(module_text + "\n")
 
-    # Quick checks go to stderr so stdout stays a clean, pipeable module.
-    here = os.path.dirname(os.path.abspath(__file__))
-    template_path = os.path.join(here, "template.html")
-    template_block = read_template_block(template_path) if os.path.exists(template_path) else None
+        here = os.path.dirname(os.path.abspath(__file__))
+        template_path = os.path.join(here, "template.html")
+        template_block = (read_template_block(template_path)
+                          if os.path.exists(template_path) else None)
+        ok = _print_results("--- QUICK CHECKS ---", run_checks(data, template_block))
+        if template_block is None:
+            print("NOTE  template.html not found; skipped verbatim scaffolding check",
+                  file=sys.stderr)
+        return 0 if ok else 1
 
-    checks = run_checks(data, template_block)
-    print("--- QUICK CHECKS ---", file=sys.stderr)
-    all_pass = True
-    for label, ok in checks:
-        print(("PASS" if ok else "FAIL") + "  " + label, file=sys.stderr)
-        all_pass = all_pass and ok
-    if template_block is None:
-        print("NOTE  template.html not found; skipped verbatim scaffolding check",
-              file=sys.stderr)
-    print("RESULT: " + ("ALL PASS" if all_pass else "SOME FAILED"), file=sys.stderr)
+    # ---- Default mode: swap the module into the template, then self-test ----
+    if not args.template or not args.out:
+        parser.error("default swap mode requires --template and --out "
+                     "(or pass --print-module)")
 
-    return 0 if all_pass else 1
+    with open(args.template, encoding="utf-8") as fh:
+        template_html = fh.read()
+    out_html = swap_arr_data(template_html, module_text)
+    with open(args.out, "w", encoding="utf-8") as fh:
+        fh.write(out_html)
+
+    # Re-read what we actually wrote and self-test it.
+    with open(args.out, encoding="utf-8") as fh:
+        written = fh.read()
+    results, summary = run_self_test(template_html, written, data)
+    ok = _print_results("--- SELF-TEST ---", results, stream=sys.stdout)
+    print(summary)
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":
