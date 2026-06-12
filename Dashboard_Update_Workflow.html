@@ -772,7 +772,7 @@ and the most overdue packages</pre>
   var bar       = document.getElementById('progressBar');
   var stepNow   = document.getElementById('stepNow');
 
-  var totalLen = 0, nodeLens = [], built = false;
+  var totalLen = 0, nodeLens = [], samples = [], built = false;
 
   /* ---- build the serpentine path through the step nodes ---- */
   function buildPath(){
@@ -808,13 +808,16 @@ and the most overdue packages</pre>
     pathDraw.style.strokeDasharray = totalLen;
     pathDraw.style.strokeDashoffset = reduced ? 0 : totalLen;
 
-    /* length along the path closest to each node (sampled) */
+    /* sample the path: y → length lookup (path is monotonic in y),
+       plus length along the path closest to each node */
     nodeLens = pts.map(function(){ return 0; });
+    samples = [];
     var best = pts.map(function(){ return Infinity; });
     var SAMPLES = 700;
     for (var s = 0; s <= SAMPLES; s++){
       var L = totalLen * s / SAMPLES;
       var p = pathDraw.getPointAtLength(L);
+      samples.push({ y: p.y, L: L });
       for (var k = 0; k < pts.length; k++){
         var dx = p.x - pts[k].x, dy = p.y - pts[k].y, dist = dx*dx + dy*dy;
         if (dist < best[k]){ best[k] = dist; nodeLens[k] = L; }
@@ -822,6 +825,21 @@ and the most overdue packages</pre>
     }
     built = true;
     onScroll();
+  }
+
+  /* path length at a given timeline-local y (binary search + interpolate) */
+  function lenAtY(y){
+    if (!samples.length) return 0;
+    if (y <= samples[0].y) return 0;
+    if (y >= samples[samples.length - 1].y) return totalLen;
+    var lo = 0, hi = samples.length - 1;
+    while (hi - lo > 1){
+      var mid = (lo + hi) >> 1;
+      if (samples[mid].y <= y) lo = mid; else hi = mid;
+    }
+    var a = samples[lo], b = samples[hi];
+    var t = b.y === a.y ? 0 : (y - a.y) / (b.y - a.y);
+    return a.L + (b.L - a.L) * t;
   }
 
   /* ---- scroll-driven drawing ---- */
@@ -833,16 +851,16 @@ and the most overdue packages</pre>
     requestAnimationFrame(function(){
       ticking = false;
       var rect  = timeline.getBoundingClientRect();
-      var focus = window.innerHeight * 0.55;
-      var progress = (focus - rect.top) / rect.height;
-      if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 2) progress = 1;
-      progress = Math.max(0, Math.min(1, progress));
+      /* focus line (55% of viewport) translated into timeline-local y:
+         the line tip tracks this point on the path exactly */
+      var focusY = window.innerHeight * 0.55 - rect.top;
+      var drawn = lenAtY(focusY);
+      if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 2) drawn = totalLen;
 
-      var drawn = totalLen * progress;
       if (!reduced) pathDraw.style.strokeDashoffset = totalLen - drawn;
 
       /* travelling dot */
-      if (!reduced && progress > 0 && progress < 1){
+      if (!reduced && drawn > 0 && drawn < totalLen){
         var pt = pathDraw.getPointAtLength(drawn);
         dotG.setAttribute('transform', 'translate(' + pt.x + ',' + pt.y + ')');
         dotG.style.visibility = 'visible';
