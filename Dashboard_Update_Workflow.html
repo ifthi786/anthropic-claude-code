@@ -328,33 +328,6 @@ pre.prompt-body::-webkit-scrollbar{width:8px;height:8px}
 .sheet-tab.proj{background:#2E75B6}
 .sheet-base{height:3px;width:100%;background:var(--line);border-radius:2px;margin-top:-1px}
 
-/* checklist */
-.checklist{margin-top:14px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
-.check-head{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:11px 16px;background:rgba(47,230,255,.05);border-bottom:1px solid var(--line);
-  font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;color:var(--cyan);
-}
-.check-head .count{color:var(--muted)}
-.check{
-  display:flex;gap:13px;align-items:flex-start;padding:12px 16px;cursor:pointer;
-  border-bottom:1px solid var(--line-soft);transition:background .2s;
-}
-.check:last-child{border-bottom:0}
-.check:hover{background:rgba(47,230,255,.04)}
-.box{
-  flex:none;width:18px;height:18px;margin-top:2px;border-radius:5px;
-  border:1.5px solid var(--faint);position:relative;transition:all .2s;
-}
-.check.done .box{background:var(--green);border-color:var(--green)}
-.check.done .box::after{
-  content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  color:#06281a;font-size:12px;font-weight:700;
-}
-.check span{font-size:13.5px;color:var(--muted)}
-.check.done span{color:var(--text)}
-.check span b{color:var(--text);font-weight:600}
-
 /* latest-run panel */
 .run-panel{margin-top:16px;border:1px solid var(--line);border-radius:12px;background:var(--bg);overflow:hidden}
 .run-head{
@@ -453,7 +426,7 @@ footer{
       </svg>
       <span class="brand-name"><b>CRITICAL PACKAGES</b> // UPDATE WORKFLOW</span>
     </a>
-    <div class="top-step"><span class="dim">STEP</span> <span id="stepNow">00</span><span class="dim"> / 06</span></div>
+    <div class="top-step"><span class="dim">STEP</span> <span id="stepNow">00</span><span class="dim"> / 05</span></div>
     <div class="progress"><i id="progressBar"></i></div>
   </div>
 </header>
@@ -463,9 +436,8 @@ footer{
   <a href="#step1"><span>01 · Download tracker</span></a>
   <a href="#step2"><span>02 · Prompt Claude</span></a>
   <a href="#step3"><span>03 · Excel rebuilt</span></a>
-  <a href="#step4"><span>04 · Verify audit</span></a>
-  <a href="#step5"><span>05 · Update dashboard</span></a>
-  <a href="#step6"><span>06 · Publish &amp; share</span></a>
+  <a href="#step4"><span>04 · Update dashboard</span></a>
+  <a href="#step5"><span>05 · Publish &amp; share</span></a>
 </nav>
 
 <!-- ============ HERO ============ -->
@@ -477,7 +449,7 @@ footer{
   </svg>
   <div class="eyebrow">CONTROL ROOM · PROCESS GUIDE</div>
   <h1>The Dashboard <span class="accent">Update Workflow</span></h1>
-  <p class="hero-sub">From downloading the Provisional Sum Nomination Tracker to a refreshed, live Critical Packages dashboard — the full cycle in six steps. Follow the line.</p>
+  <p class="hero-sub">From downloading the Provisional Sum Nomination Tracker to a refreshed, live Critical Packages dashboard — the full cycle in five steps. Follow the line.</p>
   <div class="proj-chips">
     <span>Mamsha Palm</span><span>Grove 6&amp;7</span><span>Fahid TA1-2</span>
   </div>
@@ -486,9 +458,8 @@ footer{
     <button class="ov-item" data-go="#step1"><span class="ov-num">01</span><span class="ov-label">Download tracker</span></button>
     <button class="ov-item" data-go="#step2"><span class="ov-num">02</span><span class="ov-label">Prompt Claude</span></button>
     <button class="ov-item" data-go="#step3"><span class="ov-num">03</span><span class="ov-label">Excel rebuilt</span></button>
-    <button class="ov-item" data-go="#step4"><span class="ov-num">04</span><span class="ov-label">Verify audit</span></button>
-    <button class="ov-item" data-go="#step5"><span class="ov-num">05</span><span class="ov-label">Update dashboard</span></button>
-    <button class="ov-item" data-go="#step6"><span class="ov-num">06</span><span class="ov-label">Publish &amp; share</span></button>
+    <button class="ov-item" data-go="#step4"><span class="ov-num">04</span><span class="ov-label">Update dashboard</span></button>
+    <button class="ov-item" data-go="#step5"><span class="ov-num">05</span><span class="ov-label">Publish &amp; share</span></button>
   </div>
 
   <div class="scroll-cue">
@@ -661,37 +632,13 @@ and the most overdue packages</pre>
     <article class="step step--right" id="step4">
       <div class="node">04</div>
       <div class="card">
-        <div class="step-eyebrow"><span class="num">STEP 04</span><span class="where">SAME CLAUDE CHAT</span></div>
-        <h2>Verify the mandatory audit</h2>
-        <p>Claude delivers an audit with the file. Don't download anything until every line checks out — this is what guarantees the dashboard is trustworthy. Tick them off:</p>
-        <div class="checklist" id="auditChecklist">
-          <div class="check-head"><span>AUDIT CHECKLIST</span><span class="count" id="checkCount">0 / 7</span></div>
-          <div class="check"><div class="box"></div><span><b>Items found = max item number</b> per project, with no gaps (e.g. 37/37)</span></div>
-          <div class="check"><div class="box"></div><span><b>Counts at each filter:</b> total items → after stage filter → after 45-day filter, per project</span></div>
-          <div class="check"><div class="box"></div><span><b>Stage-9 exclusions listed</b> — packages dropped at Award Rec. Approval, named specifically</span></div>
-          <div class="check"><div class="box"></div><span><b>Flags raised</b> for any stage 1–8 package with non-numeric Days Remaining</span></div>
-          <div class="check"><div class="box"></div><span><b>Tier distribution reported:</b> Overdue / Critical / Attention counts</span></div>
-          <div class="check"><div class="box"></div><span><b>Workbook integrity:</b> 4 sheets, tier fills correct, AutoFilter active, zero formula errors</span></div>
-          <div class="check"><div class="box"></div><span><b>Empty projects handled:</b> sheet still created with "No packages within 45 days at stage 1–8."</span></div>
-        </div>
-        <div class="io">
-          <span class="io-label">THEN</span><span class="arrow">→</span>
-          <span class="file-chip dim">Download Critical_Packages_by_Project.xlsx</span>
-        </div>
-      </div>
-    </article>
-
-    <!-- STEP 5 -->
-    <article class="step step--left" id="step5">
-      <div class="node">05</div>
-      <div class="card">
-        <div class="step-eyebrow"><span class="num">STEP 05</span><span class="where">CLAUDE · DESIGN</span></div>
+        <div class="step-eyebrow"><span class="num">STEP 04</span><span class="where">CLAUDE · DESIGN</span></div>
         <h2>Update the dashboard</h2>
         <p>Move to Claude's design side and feed it the fresh numbers. Upload the new Excel report together with the current standalone dashboard, and ask Claude to update the dashboard with the new data — same layout, same Command Center branding, new numbers and a new "data as of" date.</p>
         <ul class="points">
           <li><b>Upload:</b> the freshly built Critical_Packages_by_Project.xlsx</li>
           <li><b>Reference:</b> the current standalone dashboard HTML so styling and structure stay identical</li>
-          <li><b>Review on screen:</b> tier counts, project tabs, package lists and the as-of date must all match the audited Excel</li>
+          <li><b>Review on screen:</b> tier counts, project tabs, package lists and the as-of date must all match the new Excel</li>
         </ul>
         <div>
           <span class="file-chip"><svg width="13" height="15" viewBox="0 0 13 15" fill="none"><path d="M1 1h7l4 4v9H1z" stroke="#2fe6ff" stroke-width="1.2"/><path d="M8 1v4h4" stroke="#2fe6ff" stroke-width="1.2"/></svg>Critical_Packages_by_Project.xlsx</span>
@@ -704,11 +651,11 @@ and the most overdue packages</pre>
       </div>
     </article>
 
-    <!-- STEP 6 -->
-    <article class="step step--right" id="step6">
-      <div class="node">06</div>
+    <!-- STEP 5 -->
+    <article class="step step--left" id="step5">
+      <div class="node">05</div>
       <div class="card">
-        <div class="step-eyebrow"><span class="num">STEP 06</span><span class="where">DELIVERY</span></div>
+        <div class="step-eyebrow"><span class="num">STEP 05</span><span class="where">DELIVERY</span></div>
         <h2>Publish &amp; share the headline</h2>
         <p>Export the updated dashboard as a single standalone HTML file — fully self-contained, opens anywhere, no server needed. Then share the headline with the team: tier counts per project and the most overdue packages.</p>
         <div class="run-panel">
@@ -958,18 +905,6 @@ and the most overdue packages</pre>
       }
     });
   }
-
-  /* ---- audit checklist ---- */
-  var checks = Array.prototype.slice.call(document.querySelectorAll('#auditChecklist .check'));
-  var checkCount = document.getElementById('checkCount');
-  checks.forEach(function(c){
-    c.addEventListener('click', function(){
-      c.classList.toggle('done');
-      var n = checks.filter(function(x){ return x.classList.contains('done'); }).length;
-      checkCount.textContent = n + ' / ' + checks.length;
-      checkCount.style.color = n === checks.length ? 'var(--green)' : '';
-    });
-  });
 
   /* ---- wiring ---- */
   window.addEventListener('scroll', onScroll, { passive: true });
